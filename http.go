@@ -9,9 +9,9 @@ import (
 
 
 
-func Trans() ([]byte, error) {
+func Trans(body []byte) ([]byte, error) {
 
-	req, err := http.NewRequest("POST", "https://api.mch.weixin.qq.com/pay/unifiedorder", bytes.NewBuffer([]byte("")))
+	req, err := http.NewRequest("POST", "https://api.mch.weixin.qq.com/pay/unifiedorder", bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		return []byte(""), err
 	}
