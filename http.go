@@ -59,9 +59,9 @@ func (this *AppTrans) Submit(orderId string, amount float64, desc string, client
 }
 
 
-// PaymentInfo build the required information for app to start a payment
-// Please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=9_12&index=2
-func (this *AppTrans) PaymentInfo(prepayId string) map[string]string {
+// BuildPaymentRequest build the payment request structure for app to start a payment
+// Return stuct of PaymentRequest, please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=9_12&index=2
+func (this *AppTrans) BuildPaymentRequest(prepayId string) PaymentRequest {
 	param := make(map[string]string)
 	param["appid"] = this.Config.AppId
 	param["partnerid"] = this.Config.MchId
@@ -73,9 +73,17 @@ func (this *AppTrans) PaymentInfo(prepayId string) map[string]string {
 	preSignStr := SortAndConcat(param)
 	sign := Sign(preSignStr, this.Config.AppKey)
 	
-	param["sign"] = sign
+	payRequest := PaymentRequest{
+		AppId : this.Config.AppId,
+		PartnerId: this.Config.MchId,
+		PrepayId: prepayId,
+		Package: "Sign=WXPay",
+		NonceStr: NewNonceString(),
+		Timestamp: NewTimestampString(),
+		Sign: sign,
+	}
 
-	return param
+	return payRequest
 }
 
 // doRequest post the order in xml format with a sign
