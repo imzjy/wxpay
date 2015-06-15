@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
-	"time"
 )
 
 // AppTrans is abstact of Transaction handler. With AppTrans, we can get prepay id
@@ -47,16 +45,37 @@ func (this *AppTrans) Submit(orderId string, amount float64, desc string, client
 		return "", err
 	}
 
+	//TODO: check the sign to ensure message comes from weixin pay
+
 	if resultMsg.ReturnCode != "SUCCESS" {
-		return "", errors.New(resultMsg.ReturnMsg)
+		return "", fmt.Errorf("return code:%s, return desc:", resultMsg.ReturnCode, resultMsg.ReturnMsg)
 	}
 
 	if resultMsg.ResultCode != "SUCCESS" {
-		return "", fmt.Errorf("resutl code:%s, result description:%s", resultMsg.ErrCode, resultMsg.ErrCodeDesc)
+		return "", fmt.Errorf("resutl code:%s, result desc:%s", resultMsg.ErrCode, resultMsg.ErrCodeDesc)
 	}
 
 	return resultMsg.PrepayId, nil
+}
 
+
+// PaymentInfo build the required information for app to start a payment
+// Please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=9_12&index=2
+func (this *AppTrans) PaymentInfo(prepayId string) map[string]string {
+	param := make(map[string]string)
+	param["appid"] = this.Config.AppId
+	param["partnerid"] = this.Config.MchId
+	param["prepayid"] = prepayId
+	param["package"] = "Sign=WXPay"
+	param["noncestr"] = NewNonceString()
+	param["timestamp"] = NewTimestampString()
+
+	preSignStr := SortAndConcat(param)
+	sign := Sign(preSignStr, this.Config.AppKey)
+	
+	param["sign"] = sign
+
+	return param
 }
 
 // doRequest post the order in xml format with a sign
@@ -92,7 +111,7 @@ func (this *AppTrans) buildPreSignOrder(orderId, amount, desc, clientIp string) 
 	param["attach"] = "透传字段" //optional
 	param["body"] = desc
 	param["mch_id"] = this.Config.MchId
-	param["nonce_str"] = strconv.FormatInt(time.Now().UnixNano(), 36)
+	param["nonce_str"] = NewNonceString()
 	param["notify_url"] = this.Config.NotifyUrl
 	param["out_trade_no"] = orderId
 	param["spbill_create_ip"] = clientIp
@@ -106,15 +125,9 @@ func (this *AppTrans) orderInXmlString(orderId, amount, desc, clientIp string) s
 	preSignOrder := this.buildPreSignOrder(orderId, amount, desc, clientIp)
 	preSignStr := SortAndConcat(preSignOrder)
 	sign := Sign(preSignStr, this.Config.AppKey)
-	fmt.Println(sign)
+	// fmt.Println(sign)
 
 	preSignOrder["sign"] = sign
 
-	xml := "<xml>"
-	for k, v := range preSignOrder {
-		xml = xml + fmt.Sprintf("<%s>%s</%s>", k, v, k)
-	}
-	xml = xml + "</xml>"
-
-	return xml
+	return ToXmlString(preSignOrder)
 }
