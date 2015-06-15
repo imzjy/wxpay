@@ -35,7 +35,7 @@ func (this *AppTrans) Submit(orderId string, amount float64, desc string, client
 	}
 
 	odrInXml := this.orderInXmlString(orderId, fmt.Sprintf("%.0f", amount), desc, clientIp)
-	resp, err := this.doRequest([]byte(odrInXml))
+	resp, err := doHttpPost(this.Config.PlaceOrderUrl, []byte(odrInXml))
 	if err != nil {
 		return "", err
 	}
@@ -56,6 +56,31 @@ func (this *AppTrans) Submit(orderId string, amount float64, desc string, client
 	}
 
 	return resultMsg.PrepayId, nil
+}
+
+func (this *AppTrans) buildQueryXml(transId string) string{
+	param := make(map[string]string)
+	param["appid"] = this.Config.AppId
+	param["mch_id"] = this.Config.MchId
+	param["transaction_id"] = transId
+	param["nonce_str"] = NewNonceString()
+
+	preSignStr := SortAndConcat(param)
+	sign := Sign(preSignStr, this.Config.AppKey)
+
+	param["sign"] = sign
+	return ToXmlString(param)
+}
+
+// Query the order from weixin pay server by transaction id of weixin pay
+func (this *AppTrans) Query(transId string) {
+	queryXml := this.buildQueryXml(transId)
+	fmt.Println(queryXml)
+	resp, err := doHttpPost(this.Config.QueryOrderUrl, []byte(queryXml))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(resp))
 }
 
 
@@ -86,33 +111,6 @@ func (this *AppTrans) BuildPaymentRequest(prepayId string) PaymentRequest {
 	return payRequest
 }
 
-// doRequest post the order in xml format with a sign
-func (this *AppTrans) doRequest(body []byte) ([]byte, error) {
-	req, err := http.NewRequest("POST", this.Config.PlaceOrderUrl, bytes.NewBuffer([]byte(body)))
-	if err != nil {
-		return []byte(""), err
-	}
-	req.Header.Add("Content-type", "application/x-www-form-urlencoded;charset=UTF-8")
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
-	}
-	client := &http.Client{Transport: tr}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return []byte(""), err
-	}
-
-	defer resp.Body.Close()
-	respData, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return []byte(""), err
-	}
-
-	return respData, nil
-}
-
 func (this *AppTrans) buildPreSignOrder(orderId, amount, desc, clientIp string) map[string]string {
 	param := make(map[string]string)
 	param["appid"] = this.Config.AppId
@@ -138,4 +136,32 @@ func (this *AppTrans) orderInXmlString(orderId, amount, desc, clientIp string) s
 	preSignOrder["sign"] = sign
 
 	return ToXmlString(preSignOrder)
+}
+
+
+// doRequest post the order in xml format with a sign
+func doHttpPost(targetUrl string,  body []byte) ([]byte, error) {
+	req, err := http.NewRequest("POST", targetUrl, bytes.NewBuffer([]byte(body)))
+	if err != nil {
+		return []byte(""), err
+	}
+	req.Header.Add("Content-type", "application/x-www-form-urlencoded;charset=UTF-8")
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
+	}
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return []byte(""), err
+	}
+
+	defer resp.Body.Close()
+	respData, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return []byte(""), err
+	}
+
+	return respData, nil
 }

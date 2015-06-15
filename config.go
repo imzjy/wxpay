@@ -6,5 +6,6 @@ type WxConfig struct {
 	MchId         string
 	NotifyUrl     string
 	PlaceOrderUrl string
+	QueryOrderUrl string
 	TradeType     string
 }

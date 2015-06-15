@@ -27,7 +27,7 @@ func SortAndConcat(param map[string]string) string {
 	return strings.Join(sortedParam, "&")
 }
 
-// Sign the string with app key.
+// Sign the string in form of "k1=v1&k2=v2" with app key.
 // Please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=4_3
 func Sign(preSignStr, key string) string {
 	preSignWithKey := preSignStr + "&key=" + key
