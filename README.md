@@ -27,8 +27,8 @@ if err != nil {
 fmt.Println(prepayId)
 
 //生成手机端发起支付所需信息，参考：http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=9_12&index=2
-payInfo := appTrans.PaymentInfo(prepayId)
-fmt.Println(payInfo)
+payRequest := appTrans.BuildPaymentRequest(prepayId)
+fmt.Println(payRequest)
 
 ```
 
