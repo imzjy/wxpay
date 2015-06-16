@@ -54,7 +54,7 @@ func (this *AppTrans) Submit(orderId string, amount float64, desc string, client
 	}
 
 	if placeOrderResult.ReturnCode != "SUCCESS" {
-		return "", fmt.Errorf("return code:%s, return desc:", placeOrderResult.ReturnCode, placeOrderResult.ReturnMsg)
+		return "", fmt.Errorf("return code:%s, return desc:%s", placeOrderResult.ReturnCode, placeOrderResult.ReturnMsg)
 	}
 
 	if placeOrderResult.ResultCode != "SUCCESS" {
