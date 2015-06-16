@@ -15,8 +15,18 @@ type AppTrans struct {
 }
 
 // Initialized the AppTrans with specific config
-func NewAppTrans(cfg *WxConfig) *AppTrans {
-	return &AppTrans{Config: cfg}
+func NewAppTrans(cfg *WxConfig) (*AppTrans, error) {
+	if cfg.AppId == "" ||
+		cfg.MchId == "" ||
+		cfg.AppKey == "" ||
+		cfg.NotifyUrl == "" ||
+		cfg.QueryOrderUrl == "" ||
+		cfg.PlaceOrderUrl == "" ||
+		cfg.TradeType == "" {
+		return &AppTrans{Config: cfg}, errors.New("config field canot empty string")
+	}
+
+	return &AppTrans{Config: cfg}, nil
 }
 
 // Submit the order to weixin pay and return the prepay id if success,
@@ -24,69 +34,71 @@ func NewAppTrans(cfg *WxConfig) *AppTrans {
 // If fail, error is not nil, check error for more information
 func (this *AppTrans) Submit(orderId string, amount float64, desc string, clientIp string) (string, error) {
 
-	if this.Config.AppId == "" ||
-		this.Config.MchId == "" ||
-		this.Config.AppKey == "" ||
-		this.Config.NotifyUrl == "" ||
-		this.Config.NotifyUrl == "" ||
-		this.Config.PlaceOrderUrl == "" ||
-		this.Config.TradeType == "" {
-		return "", errors.New("Please set key and cert")
-	}
-
-	odrInXml := this.orderInXmlString(orderId, fmt.Sprintf("%.0f", amount), desc, clientIp)
+	odrInXml := this.signedOrderRequestXmlString(orderId, fmt.Sprintf("%.0f", amount), desc, clientIp)
 	resp, err := doHttpPost(this.Config.PlaceOrderUrl, []byte(odrInXml))
 	if err != nil {
 		return "", err
 	}
 
-	resultMsg, err := ParseResultMsg(resp)
+	placeOrderResult, err := ParsePlaceOrderResult(resp)
 	if err != nil {
 		return "", err
 	}
 
-	//TODO: check the sign to ensure message comes from weixin pay
-
-	if resultMsg.ReturnCode != "SUCCESS" {
-		return "", fmt.Errorf("return code:%s, return desc:", resultMsg.ReturnCode, resultMsg.ReturnMsg)
+	//Verify the sign of response
+	resultInMap := placeOrderResult.ToMap()
+	wantSign := Sign(resultInMap, this.Config.AppKey)
+	gotSign := resultInMap["sign"]
+	if wantSign != gotSign {
+		return "", fmt.Errorf("sign not match, want:%s, got:%s", wantSign, gotSign)
 	}
 
-	if resultMsg.ResultCode != "SUCCESS" {
-		return "", fmt.Errorf("resutl code:%s, result desc:%s", resultMsg.ErrCode, resultMsg.ErrCodeDesc)
+	if placeOrderResult.ReturnCode != "SUCCESS" {
+		return "", fmt.Errorf("return code:%s, return desc:", placeOrderResult.ReturnCode, placeOrderResult.ReturnMsg)
 	}
 
-	return resultMsg.PrepayId, nil
+	if placeOrderResult.ResultCode != "SUCCESS" {
+		return "", fmt.Errorf("resutl code:%s, result desc:%s", placeOrderResult.ErrCode, placeOrderResult.ErrCodeDesc)
+	}
+
+	return placeOrderResult.PrepayId, nil
 }
 
-func (this *AppTrans) buildQueryXml(transId string) string{
+func (this *AppTrans) newQueryXml(transId string) string {
 	param := make(map[string]string)
 	param["appid"] = this.Config.AppId
 	param["mch_id"] = this.Config.MchId
 	param["transaction_id"] = transId
 	param["nonce_str"] = NewNonceString()
 
-	preSignStr := SortAndConcat(param)
-	sign := Sign(preSignStr, this.Config.AppKey)
-
+	sign := Sign(param, this.Config.AppKey)
 	param["sign"] = sign
+
 	return ToXmlString(param)
 }
 
 // Query the order from weixin pay server by transaction id of weixin pay
-func (this *AppTrans) Query(transId string) {
-	queryXml := this.buildQueryXml(transId)
-	fmt.Println(queryXml)
+func (this *AppTrans) Query(transId string) (QueryOrderResult, error) {
+	queryOrderResult := QueryOrderResult{}
+
+	queryXml := this.newQueryXml(transId)
+	// fmt.Println(queryXml)
 	resp, err := doHttpPost(this.Config.QueryOrderUrl, []byte(queryXml))
 	if err != nil {
-		panic(err)
+		return queryOrderResult, nil
 	}
-	fmt.Println(string(resp))
-}
 
+	queryOrderResult, err = ParseQueryOrderResult(resp)
+	if err != nil {
+		return queryOrderResult, err
+	}
+
+	return queryOrderResult, nil
+}
 
 // BuildPaymentRequest build the payment request structure for app to start a payment
 // Return stuct of PaymentRequest, please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=9_12&index=2
-func (this *AppTrans) BuildPaymentRequest(prepayId string) PaymentRequest {
+func (this *AppTrans) NewPaymentRequest(prepayId string) PaymentRequest {
 	param := make(map[string]string)
 	param["appid"] = this.Config.AppId
 	param["partnerid"] = this.Config.MchId
@@ -95,23 +107,22 @@ func (this *AppTrans) BuildPaymentRequest(prepayId string) PaymentRequest {
 	param["noncestr"] = NewNonceString()
 	param["timestamp"] = NewTimestampString()
 
-	preSignStr := SortAndConcat(param)
-	sign := Sign(preSignStr, this.Config.AppKey)
-	
+	sign := Sign(param, this.Config.AppKey)
+
 	payRequest := PaymentRequest{
-		AppId : this.Config.AppId,
+		AppId:     this.Config.AppId,
 		PartnerId: this.Config.MchId,
-		PrepayId: prepayId,
-		Package: "Sign=WXPay",
-		NonceStr: NewNonceString(),
+		PrepayId:  prepayId,
+		Package:   "Sign=WXPay",
+		NonceStr:  NewNonceString(),
 		Timestamp: NewTimestampString(),
-		Sign: sign,
+		Sign:      sign,
 	}
 
 	return payRequest
 }
 
-func (this *AppTrans) buildPreSignOrder(orderId, amount, desc, clientIp string) map[string]string {
+func (this *AppTrans) newOrderRequest(orderId, amount, desc, clientIp string) map[string]string {
 	param := make(map[string]string)
 	param["appid"] = this.Config.AppId
 	param["attach"] = "透传字段" //optional
@@ -127,20 +138,18 @@ func (this *AppTrans) buildPreSignOrder(orderId, amount, desc, clientIp string) 
 	return param
 }
 
-func (this *AppTrans) orderInXmlString(orderId, amount, desc, clientIp string) string {
-	preSignOrder := this.buildPreSignOrder(orderId, amount, desc, clientIp)
-	preSignStr := SortAndConcat(preSignOrder)
-	sign := Sign(preSignStr, this.Config.AppKey)
+func (this *AppTrans) signedOrderRequestXmlString(orderId, amount, desc, clientIp string) string {
+	order := this.newOrderRequest(orderId, amount, desc, clientIp)
+	sign := Sign(order, this.Config.AppKey)
 	// fmt.Println(sign)
 
-	preSignOrder["sign"] = sign
+	order["sign"] = sign
 
-	return ToXmlString(preSignOrder)
+	return ToXmlString(order)
 }
 
-
 // doRequest post the order in xml format with a sign
-func doHttpPost(targetUrl string,  body []byte) ([]byte, error) {
+func doHttpPost(targetUrl string, body []byte) ([]byte, error) {
 	req, err := http.NewRequest("POST", targetUrl, bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		return []byte(""), err

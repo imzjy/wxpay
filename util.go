@@ -4,9 +4,9 @@ import (
 	"crypto/md5"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 )
 
 // SortAndConcat sort the map by key in ASCII order,
@@ -27,9 +27,24 @@ func SortAndConcat(param map[string]string) string {
 	return strings.Join(sortedParam, "&")
 }
 
-// Sign the string in form of "k1=v1&k2=v2" with app key.
+// Sign the parameter in form of map[string]string with app key.
+// Empty string and "sign" key is excluded before sign.
 // Please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=4_3
-func Sign(preSignStr, key string) string {
+func Sign(param map[string]string, key string) string {
+	newMap := make(map[string]string)
+	fmt.Printf("%#v\n", param)
+	for k, v := range param {
+		if k == "sign" {
+			continue
+		}
+		if v == "" {
+			continue
+		}
+		newMap[k] = v
+	}
+	fmt.Printf("%#v\n\n", newMap)
+
+	preSignStr := SortAndConcat(newMap)
 	preSignWithKey := preSignStr + "&key=" + key
 
 	return fmt.Sprintf("%X", md5.Sum([]byte(preSignWithKey)))
@@ -43,19 +58,7 @@ func NewNonceString() string {
 
 const ChinaTimeZoneOffset = 8 * 60 * 60 //Beijing(UTC+8:00)
 
-// NewTimestampString return 
+// NewTimestampString return
 func NewTimestampString() string {
-	return fmt.Sprintf("%d", time.Now().Unix() + ChinaTimeZoneOffset)
-}
-
-
-// ToXmlString convert the map[string]string to xml string
-func ToXmlString(param map[string]string) string {
-	xml := "<xml>"
-	for k, v := range param {
-		xml = xml + fmt.Sprintf("<%s>%s</%s>", k, v, k)
-	}
-	xml = xml + "</xml>"
-
-	return xml
+	return fmt.Sprintf("%d", time.Now().Unix()+ChinaTimeZoneOffset)
 }
