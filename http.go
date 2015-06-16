@@ -93,10 +93,18 @@ func (this *AppTrans) Query(transId string) (QueryOrderResult, error) {
 		return queryOrderResult, err
 	}
 
+	//verity sign of response
+	resultInMap := queryOrderResult.ToMap()
+	wantSign := Sign(resultInMap, this.Config.AppKey)
+	gotSign := resultInMap["sign"]
+	if wantSign != gotSign {
+		return queryOrderResult, fmt.Errorf("sign not match, want:%s, got:%s", wantSign, gotSign)
+	}
+
 	return queryOrderResult, nil
 }
 
-// BuildPaymentRequest build the payment request structure for app to start a payment
+// NewPaymentRequest build the payment request structure for app to start a payment.
 // Return stuct of PaymentRequest, please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=9_12&index=2
 func (this *AppTrans) NewPaymentRequest(prepayId string) PaymentRequest {
 	param := make(map[string]string)

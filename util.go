@@ -32,7 +32,7 @@ func SortAndConcat(param map[string]string) string {
 // Please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=4_3
 func Sign(param map[string]string, key string) string {
 	newMap := make(map[string]string)
-	fmt.Printf("%#v\n", param)
+	// fmt.Printf("%#v\n", param)
 	for k, v := range param {
 		if k == "sign" {
 			continue
@@ -42,7 +42,7 @@ func Sign(param map[string]string, key string) string {
 		}
 		newMap[k] = v
 	}
-	fmt.Printf("%#v\n\n", newMap)
+	// fmt.Printf("%#v\n\n", newMap)
 
 	preSignStr := SortAndConcat(newMap)
 	preSignWithKey := preSignStr + "&key=" + key
