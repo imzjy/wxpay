@@ -141,7 +141,7 @@ func (this *AppTrans) newOrderRequest(orderId, amount, desc, clientIp string) ma
 	param["out_trade_no"] = orderId
 	param["spbill_create_ip"] = clientIp
 	param["total_fee"] = amount
-	param["trade_type"] = "APP"
+	param["trade_type"] = this.Config.TradeType
 
 	return param
 }
