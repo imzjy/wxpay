@@ -107,13 +107,16 @@ func (this *AppTrans) Query(transId string) (QueryOrderResult, error) {
 // NewPaymentRequest build the payment request structure for app to start a payment.
 // Return stuct of PaymentRequest, please refer to http://pay.weixin.qq.com/wiki/doc/api/app.php?chapter=9_12&index=2
 func (this *AppTrans) NewPaymentRequest(prepayId string) PaymentRequest {
+	noncestr := NewNonceString()
+	timestamp := NewTimestampString()
+
 	param := make(map[string]string)
 	param["appid"] = this.Config.AppId
 	param["partnerid"] = this.Config.MchId
 	param["prepayid"] = prepayId
 	param["package"] = "Sign=WXPay"
-	param["noncestr"] = NewNonceString()
-	param["timestamp"] = NewTimestampString()
+	param["noncestr"] = noncestr
+	param["timestamp"] = timestamp
 
 	sign := Sign(param, this.Config.AppKey)
 
@@ -122,8 +125,8 @@ func (this *AppTrans) NewPaymentRequest(prepayId string) PaymentRequest {
 		PartnerId: this.Config.MchId,
 		PrepayId:  prepayId,
 		Package:   "Sign=WXPay",
-		NonceStr:  NewNonceString(),
-		Timestamp: NewTimestampString(),
+		NonceStr:  noncestr,
+		Timestamp: timestamp,
 		Sign:      sign,
 	}
 
